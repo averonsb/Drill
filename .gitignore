@@ -1,0 +1,12 @@
+.env
+*.key
+*.crt
+
+# macOS
+.DS_store
+
+# local configs
+**/hysteria.yaml
+
+#tmp
+*.my

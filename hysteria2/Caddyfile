@@ -1,0 +1,9 @@
+{
+    servers {
+        protocols h1 h2
+    }
+}
+
+{$DOMAIN} {
+    respond "OK" 200
+}

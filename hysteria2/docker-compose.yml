@@ -1,0 +1,29 @@
+services:
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN}
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  hysteria2:
+    image: tobyxdd/hysteria
+    container_name: hysteria2
+    restart: unless-stopped
+    ports:
+      - "443:443/udp"
+    volumes:
+      - ./hysteria.yaml:/etc/hysteria.yaml:ro
+      - caddy_data:/caddy_data:ro
+    command: ["server", "-c", "/etc/hysteria.yaml"]
+
+volumes:
+  caddy_data:
+  caddy_config:
