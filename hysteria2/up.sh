@@ -18,3 +18,10 @@ set +a
 envsubst < hysteria.yaml.template > hysteria.yaml
 
 docker compose up -d
+
+ENC_PASS=$(jq -rn --arg x "$HYSTERIA_PASSWORD" '$x|@uri')
+
+URI="hy2://${ENC_PASS}@${DOMAIN}:443/?sni=${DOMAIN}&insecure=0#Hysteria2: ${DOMAIN}"
+qrencode -t ANSIUTF8 "$URI"
+qrencode -o "qr-hysteria2-${DOMAIN}.png" "$URI"
+echo "$URI" > "txt-hysteria2-${DOMAIN}.txt"
