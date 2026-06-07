@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 SERVER="${1:-}"
 SSH_KEY="${2:-}"
 
@@ -22,10 +24,6 @@ SSH_OPTS=(
 if [[ -n "$SSH_KEY" ]]; then
   SSH_OPTS+=(-i "$SSH_KEY")
 fi
-
-#######
-# UPDATE(apt update) & UPGRADE(apt upgrade && apt full-upgrade && reboot) SERVER BEFORE RUNNING CODE BELOW
-#######
 
 echo "==> Connecting to $SERVER"
 ssh "${SSH_OPTS[@]}" "$SERVER" 'bash -s' <<'REMOTE_SCRIPT'
@@ -52,10 +50,17 @@ systemctl reboot
 
 REMOTE_SCRIPT
 
-echo "==> Waiting for server to boot for 30 seconds..."
-sleep 30
+W_TIMER=30
+echo "==> Waiting for server to boot for $W_TIMER seconds..."
+STEP=$((W_TIMER / 3))
+
+for ((i=3; i>0; i--)); do
+    sleep "$STEP"
+    echo "==> $((STEP * (i - 1))) seconds left"
+done
+
 echo "==> Connecting to $SERVER to copy sshd_conf..."
-scp "${SSH_OPTS[@]}" ./sshd_config "$SERVER:/tmp/sshd_config"
+scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/sshd_config" "$SERVER:/tmp/sshd_config"
 
 echo "==> Connecting to $SERVER"
 
@@ -143,7 +148,8 @@ $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y \
   iproute2 \
   dnsutils \
   traceroute \
-  tcpdump
+  tcpdump \
+  qrencode
 
 echo "==> Adding Docker official GPG key"
 
@@ -198,8 +204,8 @@ echo "==> Configuring baseline nftables firewall"
 
 $SUDO systemctl enable nftables
 
-# Do not flush the whole nftables ruleset here: Docker and other services may own
-# their own tables/chains. This script manages only table inet host_filter.
+# Do not flush the whole nftables ruleset here:
+# Docker and other services may own their own tables/chains.
 $SUDO nft -f - <<'NFT_RULES'
 add table inet host_filter
 flush table inet host_filter
@@ -210,18 +216,9 @@ table inet host_filter {
   chain input {
     type filter hook input priority filter; policy drop;
 
-    # Localhost traffic
     iifname "lo" accept
-
-    # Already established connections
     ct state established,related accept
-
-    # Drop invalid packets early
     ct state invalid drop
-
-    # Basic diagnostics and path MTU discovery
-    ip protocol icmp accept
-    ip6 nexthdr ipv6-icmp accept
 
     # SSH
     tcp dport 22 accept
@@ -237,15 +234,15 @@ table inet host_filter {
 }
 NFT_RULES
 
-$SUDO nft list ruleset > /etc/nftables.conf
-$SUDO systemctl restart nftables
+$SUDO nft list table inet host_filter > /etc/nftables.conf 
+$SUDO systemctl enable nftables
 
 echo "==> Firewall baseline enabled: inbound default deny, SSH/22 allowed"
 
 echo "==> Configuring sysctl"
 
 cat >/etc/sysctl.d/99-host.conf <<'EOF'
-# IPv4 forwarding
+
 net.ipv4.ip_forward = 1
 
 # Disable IPv6 completely
